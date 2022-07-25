@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 tensorflow = "*"
+tensorflow_dataset = "*"
 matplotlib = "*"
 graphviz = "*"
 pydot = "*"
