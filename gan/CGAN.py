@@ -1,6 +1,7 @@
 # Std
 import os
 import random
+from time import time, strftime
 # Local
 from gan.GAN import GanNet
 # External
@@ -16,37 +17,34 @@ import matplotlib.pyplot as plt
 class CGanNet(GanNet):
 
     def __init__(self,
+                 net_name: str,
                  batch_size: int,
-                 batches_per_epoch: int,
                  image_width: int,
                  image_height: int,
                  number_of_channels: int,
                  latent_dimension: int,
                  training_data,
-                 labels_data,
+                 labels_data: dict,
                  labels_names,
                  number_of_classes: int,
-                 epoch_number_file: str = '.epoch',
-                 data_path: str = f'{os.getcwd()}/cgan_data',
+                 batches_per_epoch: int = None,
                  ):
 
-        super(CGanNet, self).__init__(batch_size,
-                                      batches_per_epoch,
+        super(CGanNet, self).__init__(net_name,
+                                      batch_size,
                                       image_width,
                                       image_height,
                                       number_of_channels,
                                       latent_dimension,
                                       training_data,
-                                      epoch_number_file,
-                                      data_path)
+                                      batches_per_epoch,
+                                      )
 
         self._number_of_classes = number_of_classes
         self._labels_data = labels_data
         self._labels_names = labels_names
-        self._half_batch_size = int(batch_size / 2)
 
     def define_discriminator(self):
-
         # Label Inputs
         in_label = Input(shape=(1,), name='Disc-Label-Input-Layer')
         li = Embedding(self._number_of_classes, 50, name='Disc-Label-Embedding-Layer')(in_label)
@@ -54,7 +52,8 @@ class CGanNet(GanNet):
         # Scale up to image dimensions
         n_nodes = self._input_shape[0] * self._input_shape[1]
         li = Dense(n_nodes, name='Disc-Label-Dense_layer')(li)
-        li = Reshape((self._input_shape[0], self._input_shape[1], 1), name='Disc-Label-Reshape-Layer')(li)   # Reshape to image size but with only one channel
+        li = Reshape((self._input_shape[0], self._input_shape[1], 1), name='Disc-Label-Reshape-Layer')(
+            li)  # Reshape to image size but with only one channel
 
         # Image input
         in_image = Input(shape=self._input_shape, name='Disc-Image-Input-Layer')
@@ -63,7 +62,8 @@ class CGanNet(GanNet):
         merge = Concatenate(name='Disc-Combine-Layers')([in_image, li])
 
         # Downsample 1
-        fe = Conv2D(filters=128, kernel_size=(3, 3), strides=(2, 2), padding='same', name='Disc-Downsample-1-Layer')(merge)
+        fe = Conv2D(filters=128, kernel_size=(3, 3), strides=(2, 2), padding='same', name='Disc-Downsample-1-Layer')(
+            merge)
         fe = LeakyReLU(alpha=0.2, name='Disc-Downsample-1-Layer-Activation')(fe)
 
         # Downsample 2
@@ -113,11 +113,13 @@ class CGanNet(GanNet):
         merge = Concatenate(name='Gen-Combine-Layer')([gen, li])
 
         # Upsample to 14x14
-        gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same', name='Gen-Upsample-1-Layer')(merge)
+        gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
+                              name='Gen-Upsample-1-Layer')(merge)
         gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-1-Layer-Activation')(gen)
 
         # Upsample to 28x28
-        gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same', name='Gen-Upsample-2-Layer')(gen)
+        gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
+                              name='Gen-Upsample-2-Layer')(gen)
         gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-2-Layer-Activation')(gen)
 
         # Output
@@ -146,132 +148,116 @@ class CGanNet(GanNet):
         # Define gan model as taking noise and label and outputting a classification
         model = Model([gen_noise, gen_label], gan_output, name='Conditional-DCGAN')
 
-        # compile model
+        # Compile model
         opt = Adam(learning_rate=0.0002, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt)
         self._gan = model
 
     def generate_real_images(self):
-        # choose random instances
+        # Choose random instances
         indexes = np.random.randint(0, self._training_data_size, self._half_batch_size)
         real_image_from_training_data = self._training_data[indexes]
         real_label_from_labels_data = self._labels_data[indexes]
 
-        # generate class labels
+        # Generate expected response for real images = 1
         expected_responses_for_real_images = np.ones((self._half_batch_size, 1))
         return [real_image_from_training_data, real_label_from_labels_data], expected_responses_for_real_images
 
-    def generate_generator_inputs(self, size: int = None):
-
-        if not size:
-            size = self._half_batch_size
-
-        # generate points in the latent space
+    def generate_generator_inputs(self, size: int):
+        # Generate points in the latent space
         x_input = np.random.randn(self._latent_dimension * size)
-        # reshape into a batch of inputs for the network
+
+        # Reshape into a batch of inputs for the network
         generator_input = x_input.reshape(size, self._latent_dimension)
 
-        # generate labels
+        # Generate labels
         labels = np.random.randint(0, self._number_of_classes, size)
         return [generator_input, labels]
 
     def generate_fake_images(self, size: int = None):
 
-        # generate points in latent space
+        if not size:
+            size = self._half_batch_size
+
+        # Generate points in latent space
         generator_inputs, labels_input = self.generate_generator_inputs(size=size)
-        # predict outputs
+        # Predict outputs
         fake_images = self._generator.predict([generator_inputs, labels_input])
-        # create class labels
+        # Create class labels
         expected_responses_for_fake_images = np.zeros((self._half_batch_size, 1))
         return [fake_images, labels_input], expected_responses_for_fake_images
 
-    def load_model(self) -> int:
-        epoch_num = self.load_epoch_number_from_file() + 1
-        self.load_weights()
-        return epoch_num
-
     def train(self, number_of_epochs: int, load_past_model: bool = True):
-        print("Dataset size:", self._training_data_size)
+        print(f'Number of images in dataset: {self._training_data_size}')
         print(f'Batches per epoch: {self._batches_per_epoch}')
         print(f'Half batch size is: {self._half_batch_size}')
 
         if load_past_model:
-            past_epochs_number = self.load_model()
+            self.load_model()
         else:
-            past_epochs_number = 0
+            self.archive_old_model()
+            self.clear_files_structure()
+            self.create_files_structure()
 
         for epoch_number in range(number_of_epochs):
-
+            print('------------------------------------------------------------')
             progbar = tf.keras.utils.Progbar(target=self._batches_per_epoch)
-            actual_epoch_numer = epoch_number + past_epochs_number
+            print(f"---> Epoch: {self._epoch_number} {epoch_number + 1}/{number_of_epochs}")
+            start_time = time()
+            print(f'---> Start time is: {strftime("%H:%M:%S")}')
 
-            print(f"----> Epoch: {actual_epoch_numer}")
-
-            epoch_discriminator_real_images_loss = 0
-            epoch_discriminator_fake_images_loss = 0
-            epoch_generator_loss = 0
-            epoch_discriminator_real_images_accuracy = 0
-            epoch_discriminator_fake_images_accuracy = 0
-            # epoch_generator_accuracy = 0
+            discriminator_real_images_loss = 0
+            discriminator_fake_images_loss = 0
+            generator_loss = 0
+            discriminator_real_images_accuracy = 0
+            discriminator_fake_images_accuracy = 0
 
             for batch_number in range(self._batches_per_epoch):
-
-                # Discriminator real
+                # Discriminator train on real images
                 [real_images, real_labels], real_answers = self.generate_real_images()
                 discriminator_real_images_loss, discriminator_real_images_accuracy = \
                     self._discriminator.train_on_batch([real_images, real_labels], real_answers)
 
-                # Discriminator fake
+                # Discriminator train on fake images
                 [fake_images, fake_labels], fake_answers = self.generate_fake_images()
                 discriminator_fake_images_loss, discriminator_fake_images_accuracy = \
                     self._discriminator.train_on_batch([fake_images, fake_labels], fake_answers)
 
-
-                # prepare points in latent space as input for the generator
+                # Prepare points in latent space as input for the generator
                 [generator_random_input_vector, labels_input] = self.generate_generator_inputs(size=self._batch_size)
-                # create inverted labels for the fake samples
+                # Create inverted labels for the fake samples
                 generator_expected_answers = np.ones((self._batch_size, 1))
-                # update the generator via the discriminator's error
+                # Update the generator via the discriminator's error
                 generator_loss = self._gan.train_on_batch([generator_random_input_vector, labels_input],
                                                           generator_expected_answers)
-                # summarize loss on this batch
-                progbar.update(batch_number+1)
+                # Update progress bar
+                progbar.update(batch_number + 1)
 
-                self._discriminator_real_loss_list.append(discriminator_real_images_loss)
-                self._discriminator_fake_loss_list.append(discriminator_fake_images_loss)
-                self._generator_loss_list.append(generator_loss)
-                self.save_loss_function_to_files(discriminator_real_images_loss, discriminator_fake_images_loss, generator_loss)
+                # Save loss data
+                self.save_loss_data_to_files(discriminator_real_images_loss, discriminator_fake_images_loss,
+                                             generator_loss)
+            end_time = time()
+            print(f'---> End time is: {strftime("%H:%M:%S")}')
 
-                epoch_discriminator_real_images_loss = discriminator_real_images_loss
-                epoch_discriminator_fake_images_loss = discriminator_fake_images_loss
-                epoch_generator_loss = generator_loss
-                epoch_discriminator_real_images_accuracy = discriminator_real_images_accuracy
-                epoch_discriminator_fake_images_accuracy = discriminator_fake_images_accuracy
-                # epoch_generator_accuracy = generator_accuracy
+            # Results after one epoch
+            print(f"---> D_real_loss: {discriminator_real_images_loss}"
+                  f" D_fake_loss: {discriminator_fake_images_loss}"
+                  f" G_loss: {generator_loss}")
 
-            print(f"\nD_real_loss: {epoch_discriminator_real_images_loss}"
-                  f" D_fake_loss: {epoch_discriminator_fake_images_loss}"
-                  f" G_loss: {epoch_generator_loss}")
+            print(f"----> D_real_acc: {discriminator_real_images_accuracy}"
+                  f" D_fake_acc: {discriminator_fake_images_accuracy}")
 
-            print(f"D_real_acc: {epoch_discriminator_real_images_accuracy}"
-                  f" D_fake_acc: {epoch_discriminator_fake_images_accuracy}")
-                  #f" G_acc: {epoch_generator_accuracy}")
+            self.save_time_to_file(start_time, end_time)
+            self.save_weights_to_files()
+            self.save_sample_of_images_with_labels()
+            self.save_epoch_number_to_file()
+            self._epoch_number = self._epoch_number + 1
+        # After full training
+        self.save_models()
+        self.plot_loss()
+        self.get_training_time()
 
-            self.save_sample_of_images(epoch_number=actual_epoch_numer)
-            self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_{actual_epoch_numer}.h5')
-            self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_latest.h5')
-            self._discriminator.save_weights(f'{self._data_path}/weights/discriminator/weights_epoch_{actual_epoch_numer}.h5')
-            self._discriminator.save_weights(f'{self._data_path}/weights/discriminator/weights_epoch_latest.h5')
-            self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_{actual_epoch_numer}.h5')
-            self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_latest.h5')
-
-            self.save_epoch_number_to_file(actual_epoch_numer)
-        # save the generator model
-        self._generator.save(f'{self._data_path}/models/generator_flowers.h5')
-        self._discriminator.save(f'{self._data_path}/models/discriminator_flowers.h5')
-        self._gan.save(f'{self._data_path}/models/gan_flowers.h5')
-
-    def save_sample_of_images(self, epoch_number):
+    def save_sample_of_images_with_labels(self):
         rows = 5
         cols = 5
 
@@ -293,26 +279,22 @@ class CGanNet(GanNet):
                 axs[i, j].axis('off')
                 cnt += 1
         fig.set_facecolor('white')
-        fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/sample_images/sample_{epoch_number}.png"))
+        fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/sample_images/sample_{self._epoch_number}.png"))
         plt.close()
 
     def get_random_labels_list(self, size: int = 5) -> list:
-
         random_labels_part = []
-
         while len(random_labels_part) < size:
             random_label = random.randint(0, self._number_of_classes - 1)
             if random_label not in random_labels_part:
                 random_labels_part.append(random_label)
 
         random_labels_groups = []
-
         for _ in range(5):
             random_labels_groups.extend(random_labels_part)
-
         return random_labels_groups
 
-    def show_sample_images(self):
+    def show_sample_images_with_labels(self):
         x_fake, _ = self.generate_fake_images(size=25)
         # images = (x_fake[0] + 1) / 2.0
         images = np.clip(x_fake[0], 0, 1)
@@ -331,7 +313,8 @@ class CGanNet(GanNet):
         fig.set_facecolor('white')
         plt.show()
 
-    def show_sample_image_one(self, label_num: int):
+
+    def show_one_image_with_label(self, label_num: int):
         noise, _ = self.generate_generator_inputs(size=1)
         label_arr = np.array([label_num])
         image = self._generator.predict([noise, label_arr])
