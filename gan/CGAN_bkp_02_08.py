@@ -1,9 +1,5 @@
-# Std
-import os
-import random
-# Local
 from gan.GAN import GanNet
-# External
+import os
 from tensorflow.keras.layers import Input, Embedding, Dense, Reshape, \
     Concatenate, Conv2D, LeakyReLU, Flatten, Dropout, Conv2DTranspose
 from tensorflow.keras.models import Model
@@ -11,6 +7,8 @@ from tensorflow.keras.optimizers import Adam
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import random
+from matplotlib import pyplot
 
 
 class CGanNet(GanNet):
@@ -31,57 +29,49 @@ class CGanNet(GanNet):
                  ):
 
         super(CGanNet, self).__init__(batch_size,
-                                      batches_per_epoch,
-                                      image_width,
-                                      image_height,
-                                      number_of_channels,
-                                      latent_dimension,
-                                      training_data,
-                                      epoch_number_file,
-                                      data_path)
+                                     batches_per_epoch,
+                                     image_width,
+                                     image_height,
+                                     number_of_channels,
+                                     latent_dimension,
+                                     training_data,
+                                     epoch_number_file,
+                                     data_path)
 
         self._number_of_classes = number_of_classes
         self._labels_data = labels_data
         self._labels_names = labels_names
-        self._half_batch_size = int(batch_size / 2)
 
     def define_discriminator(self):
 
-        # Label Inputs
-        in_label = Input(shape=(1,), name='Disc-Label-Input-Layer')
-        li = Embedding(self._number_of_classes, 50, name='Disc-Label-Embedding-Layer')(in_label)
-
-        # Scale up to image dimensions
+        # label input
+        in_label = Input(shape=(1,))
+        # embedding for categorical input
+        li = Embedding(self._number_of_classes, 50)(in_label)
+        # scale up to image dimensions with linear activation
         n_nodes = self._input_shape[0] * self._input_shape[1]
-        li = Dense(n_nodes, name='Disc-Label-Dense_layer')(li)
-        li = Reshape((self._input_shape[0], self._input_shape[1], 1), name='Disc-Label-Reshape-Layer')(li)   # Reshape to image size but with only one channel
-
-        # Image input
-        in_image = Input(shape=self._input_shape, name='Disc-Image-Input-Layer')
-
-        # Concat label as a channel
-        merge = Concatenate(name='Disc-Combine-Layers')([in_image, li])
-
-        # Downsample 1
-        fe = Conv2D(filters=128, kernel_size=(3, 3), strides=(2, 2), padding='same', name='Disc-Downsample-1-Layer')(merge)
-        fe = LeakyReLU(alpha=0.2, name='Disc-Downsample-1-Layer-Activation')(fe)
-
-        # Downsample 2
-        fe = Conv2D(filters=128, kernel_size=(3, 3), strides=(2, 2), padding='same', name='Disc-Downsample-2-Layer')(fe)
-        fe = LeakyReLU(alpha=0.2, name='Disc-Downsample-2-Layer-Activation')(fe)
-
-        # Flatten
-        fe = Flatten(name='Disc-Flatten-Layer')(fe)
-        # Dropout
-        fe = Dropout(0.4, name='Disc-Flatten-Layer-Dropout')(fe)
-
-        # Output Layer
-        out_layer = Dense(1, activation='sigmoid', name='Disc-Output-Layer')(fe)
-
-        # Define model
-        model = Model([in_image, in_label], out_layer, name='Discriminator-Model')
-
-        # Compile model
+        li = Dense(n_nodes)(li)
+        # reshape to additional channel
+        li = Reshape((self._input_shape[0], self._input_shape[1], 1))(li)
+        # image input
+        in_image = Input(shape=self._input_shape)
+        # concat label as a channel
+        merge = Concatenate()([in_image, li])
+        # downsample
+        fe = Conv2D(128, (3, 3), strides=(2, 2), padding='same')(merge)
+        fe = LeakyReLU(alpha=0.2)(fe)
+        # downsample
+        fe = Conv2D(128, (3, 3), strides=(2, 2), padding='same')(fe)
+        fe = LeakyReLU(alpha=0.2)(fe)
+        # flatten feature maps
+        fe = Flatten()(fe)
+        # dropout
+        fe = Dropout(0.4)(fe)
+        # output
+        out_layer = Dense(1, activation='sigmoid')(fe)
+        # define model
+        model = Model([in_image, in_label], out_layer)
+        # compile model
         opt = Adam(learning_rate=0.0002, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
         self._discriminator = model
@@ -91,61 +81,48 @@ class CGanNet(GanNet):
         init_width = self._generator_initial_image_width
         init_height = self._generator_initial_image_height
 
-        # Label input
-        in_label = Input(shape=(1,), name='Gen-Label-Input-layer')
-        li = Embedding(self._number_of_classes, 50, name='Gen-Label-Embedding-Layer')(in_label)
-
-        # Scale up to image dimensions
+        # label input
+        in_label = Input(shape=(1,))
+        # embedding for categorical input
+        li = Embedding(self._number_of_classes, 50)(in_label)
+        # linear multiplication
         n_nodes = init_width * init_height
-        li = Dense(n_nodes, name='Gen-Label-Dense-Layer')(li)
-        li = Reshape((init_width, init_height, 1), name='Gen-Label-Reshape_Layer')(li)
-
-        # Generator Input (latent vector)
-        in_lat = Input(shape=(self._latent_dimension,), name='Gen-Latent-Input-Layer')
-
-        # Foundation for 7x7 image
+        li = Dense(n_nodes)(li)
+        # reshape to additional channel
+        li = Reshape((init_width, init_height, 1))(li)
+        # image generator input
+        in_lat = Input(shape=(self._latent_dimension,))
+        # foundation for 7x7 image
         n_nodes = 128 * init_width * init_height
-        gen = Dense(n_nodes, name='Gen-Foundation-Layer')(in_lat)
-        gen = LeakyReLU(alpha=0.2, name='Gen-Foundation-Layer-Activation')(gen)
-        gen = Reshape((init_width, init_height, 128), name='Gen-Foundation-Layer-Reshape')(gen)
-
-        # Merge image gen and label input
-        merge = Concatenate(name='Gen-Combine-Layer')([gen, li])
-
-        # Upsample to 14x14
-        gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same', name='Gen-Upsample-1-Layer')(merge)
-        gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-1-Layer-Activation')(gen)
-
-        # Upsample to 28x28
-        gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same', name='Gen-Upsample-2-Layer')(gen)
-        gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-2-Layer-Activation')(gen)
-
-        # Output
-        # out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(init_width, init_height), activation='tanh', padding='same', name='Gen-Output-Layer')(gen)
-        out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(7, 7), activation='tanh', padding='same',
-                           name='Gen-Output-Layer')(gen)
-
+        gen = Dense(n_nodes)(in_lat)
+        gen = LeakyReLU(alpha=0.2)(gen)
+        gen = Reshape((init_width, init_height, 128))(gen)
+        # merge image gen and label input
+        merge = Concatenate()([gen, li])
+        # upsample to 14x14
+        gen = Conv2DTranspose(128, (4, 4), strides=(2, 2), padding='same')(merge)
+        gen = LeakyReLU(alpha=0.2)(gen)
+        # upsample to 28x28
+        gen = Conv2DTranspose(128, (4, 4), strides=(2, 2), padding='same')(gen)
+        gen = LeakyReLU(alpha=0.2)(gen)
+        # output
+        out_layer = Conv2D(self._number_of_channels, (7, 7), activation='tanh', padding='same')(gen)
         # define model
-        model = Model([in_lat, in_label], out_layer, name='Generator-Model')
+        model = Model([in_lat, in_label], out_layer)
         self._generator = model
 
     def define_gan(self):
 
-        # Make weights in the discriminator not trainable
+        # make weights in the discriminator not trainable
         self._discriminator.trainable = False
-
-        # Get noise and label inputs from generator model
+        # get noise and label inputs from generator model
         gen_noise, gen_label = self._generator.input
-
-        # Get image output from the generator model
+        # get image output from the generator model
         gen_output = self._generator.output
-
-        # Connect image output and label input from generator as inputs to discriminator
+        # connect image output and label input from generator as inputs to discriminator
         gan_output = self._discriminator([gen_output, gen_label])
-
-        # Define gan model as taking noise and label and outputting a classification
-        model = Model([gen_noise, gen_label], gan_output, name='Conditional-DCGAN')
-
+        # define gan model as taking noise and label and outputting a classification
+        model = Model([gen_noise, gen_label], gan_output)
         # compile model
         opt = Adam(learning_rate=0.0002, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt)
@@ -153,18 +130,18 @@ class CGanNet(GanNet):
 
     def generate_real_images(self):
         # choose random instances
-        indexes = np.random.randint(0, self._training_data_size, self._half_batch_size)
+        indexes = np.random.randint(0, self._training_data_size, self._batch_size)
         real_image_from_training_data = self._training_data[indexes]
         real_label_from_labels_data = self._labels_data[indexes]
 
         # generate class labels
-        expected_responses_for_real_images = np.ones((self._half_batch_size, 1))
+        expected_responses_for_real_images = np.ones((self._batch_size, 1))
         return [real_image_from_training_data, real_label_from_labels_data], expected_responses_for_real_images
 
-    def generate_generator_inputs(self, size: int = None):
+    def generate_generator_inputs(self, size=None):
 
         if not size:
-            size = self._half_batch_size
+            size = self._batch_size
 
         # generate points in the latent space
         x_input = np.random.randn(self._latent_dimension * size)
@@ -175,14 +152,13 @@ class CGanNet(GanNet):
         labels = np.random.randint(0, self._number_of_classes, size)
         return [generator_input, labels]
 
-    def generate_fake_images(self, size: int = None):
-
+    def generate_fake_images(self):
         # generate points in latent space
-        generator_inputs, labels_input = self.generate_generator_inputs(size=size)
+        generator_inputs, labels_input = self.generate_generator_inputs()
         # predict outputs
         fake_images = self._generator.predict([generator_inputs, labels_input])
         # create class labels
-        expected_responses_for_fake_images = np.zeros((self._half_batch_size, 1))
+        expected_responses_for_fake_images = np.zeros((self._batch_size, 1))
         return [fake_images, labels_input], expected_responses_for_fake_images
 
     def load_model(self) -> int:
@@ -193,7 +169,6 @@ class CGanNet(GanNet):
     def train(self, number_of_epochs: int, load_past_model: bool = True):
         print("Dataset size:", self._training_data_size)
         print(f'Batches per epoch: {self._batches_per_epoch}')
-        print(f'Half batch size is: {self._half_batch_size}')
 
         if load_past_model:
             past_epochs_number = self.load_model()
@@ -215,20 +190,18 @@ class CGanNet(GanNet):
             # epoch_generator_accuracy = 0
 
             for batch_number in range(self._batches_per_epoch):
-
-                # Discriminator real
+                # get randomly selected 'real' samples
                 [real_images, real_labels], real_answers = self.generate_real_images()
+                # update discriminator model weights
                 discriminator_real_images_loss, discriminator_real_images_accuracy = \
                     self._discriminator.train_on_batch([real_images, real_labels], real_answers)
-
-                # Discriminator fake
+                # generate 'fake' examples
                 [fake_images, fake_labels], fake_answers = self.generate_fake_images()
+                # update discriminator model weights
                 discriminator_fake_images_loss, discriminator_fake_images_accuracy = \
                     self._discriminator.train_on_batch([fake_images, fake_labels], fake_answers)
-
-
                 # prepare points in latent space as input for the generator
-                [generator_random_input_vector, labels_input] = self.generate_generator_inputs(size=self._batch_size)
+                [generator_random_input_vector, labels_input] = self.generate_generator_inputs()
                 # create inverted labels for the fake samples
                 generator_expected_answers = np.ones((self._batch_size, 1))
                 # update the generator via the discriminator's error
@@ -240,7 +213,6 @@ class CGanNet(GanNet):
                 self._discriminator_real_loss_list.append(discriminator_real_images_loss)
                 self._discriminator_fake_loss_list.append(discriminator_fake_images_loss)
                 self._generator_loss_list.append(generator_loss)
-                self.save_loss_function_to_files(discriminator_real_images_loss, discriminator_fake_images_loss, generator_loss)
 
                 epoch_discriminator_real_images_loss = discriminator_real_images_loss
                 epoch_discriminator_fake_images_loss = discriminator_fake_images_loss
@@ -264,7 +236,6 @@ class CGanNet(GanNet):
             self._discriminator.save_weights(f'{self._data_path}/weights/discriminator/weights_epoch_latest.h5')
             self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_{actual_epoch_numer}.h5')
             self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_latest.h5')
-
             self.save_epoch_number_to_file(actual_epoch_numer)
         # save the generator model
         self._generator.save(f'{self._data_path}/models/generator_flowers.h5')
@@ -280,7 +251,7 @@ class CGanNet(GanNet):
         labels = np.asarray(random_labels)
         gen_imgs = self._generator.predict([generator_inputs, labels])
 
-        # gen_imgs = 0.5 * (gen_imgs + 1)
+        gen_imgs = 0.5 * (gen_imgs + 1)
         gen_imgs = np.clip(gen_imgs, 0, 1)
 
         fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
@@ -288,7 +259,7 @@ class CGanNet(GanNet):
 
         for i in range(rows):
             for j in range(cols):
-                axs[i, j].set_title(f'({labels[cnt]}) {self._labels_names[labels[cnt]]}')
+                axs[i, j].set_title(f'({labels[cnt]}) {self._labels_names[str(labels[cnt])]}')
                 axs[i, j].imshow(np.squeeze(gen_imgs[cnt, :, :, :]), cmap='gray')
                 axs[i, j].axis('off')
                 cnt += 1
@@ -313,9 +284,9 @@ class CGanNet(GanNet):
         return random_labels_groups
 
     def show_sample_images(self):
-        x_fake, _ = self.generate_fake_images(size=25)
-        # images = (x_fake[0] + 1) / 2.0
-        images = np.clip(x_fake[0], 0, 1)
+        x_fake, _ = self.generate_fake_images()
+        images = (x_fake[0] + 1) / 2.0
+        # gen_imgs = np.clip(images, 0, 1)
 
         rows = 5
         cols = 5
@@ -324,7 +295,7 @@ class CGanNet(GanNet):
         fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
         for i in range(rows):
             for j in range(cols):
-                axs[i, j].set_title(f'({x_fake[1][cnt]}) {self._labels_names[x_fake[1][cnt]]}')
+                axs[i, j].set_title(f'({x_fake[1][cnt]}) {self._labels_names[str(x_fake[1][cnt])]}')
                 axs[i, j].imshow(images[cnt], cmap='gray')
                 axs[i, j].axis('off')
                 cnt += 1
@@ -335,7 +306,7 @@ class CGanNet(GanNet):
         noise, _ = self.generate_generator_inputs(size=1)
         label_arr = np.array([label_num])
         image = self._generator.predict([noise, label_arr])
-        image = np.clip(image, 0, 1)
-        # image = (image + 1) / 2.0
+        # gen_image = np.clip(image, 0, 1)
+        image = (image + 1) / 2.0
         plt.axis('off')
         plt.imshow(np.squeeze(image), cmap='gray')

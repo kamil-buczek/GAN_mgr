@@ -1,6 +1,5 @@
+# Local
 # External
-import shutil
-
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Flatten, Dropout, Dense, LeakyReLU, Reshape
 from tensorflow.keras.optimizers import Adam
@@ -9,7 +8,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 # Std
 import os
-
+import shutil
 
 # Local
 
@@ -162,6 +161,7 @@ class GanNet(object):
                 axs[i, j].imshow(np.squeeze(gen_imgs[cnt, :, :, :]), cmap='gray')
                 axs[i, j].axis('off')
                 cnt += 1
+        fig.set_facecolor('white')
         fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/sample_images/sample_{epoch_number}.png"))
         plt.close()
 
@@ -169,7 +169,18 @@ class GanNet(object):
         file_name = self._epoch_number_file
         with open(file_name, 'w') as file:
             file.write(f'{epoch_number}')
-        # print(f'----> Save epoch number {epoch_number} to file {file_name}')
+
+    def save_loss_function_to_files(self, disc_real, disc_fake, gen):
+
+        mapping = {
+            '.loss_disc_fake': disc_fake,
+            '.loss_disc_real': disc_real,
+            '.loss_gen': gen
+        }
+
+        for file_name, data in mapping.items():
+            with open(file_name, 'a') as file:
+                file.write(f'{str(data)}\n')
 
     def load_epoch_number_from_file(self) -> int:
         file_name = self._epoch_number_file
@@ -290,12 +301,11 @@ class GanNet(object):
         plt.yticks(fontsize=15)
 
         plt.xlim(0, len(self._discriminator_real_loss_list))
-        plt.ylim(0, 3)
+        plt.ylim(0, 10)
 
         fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/plots/loss_{epoch_number}.png"))
 
     def create_files_structure(self):
-
 
         directories = [
             'sample_images',
@@ -311,3 +321,5 @@ class GanNet(object):
 
     def clear_files_structure(self):
         shutil.rmtree(self._data_path)
+
+
