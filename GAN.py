@@ -311,6 +311,8 @@ class GanNet(object):
         plt.plot([_ for _ in disc_fake_data], color='green', linewidth=0.5)
         plt.plot([_ for _ in generator_data], color='red', linewidth=0.5)
 
+        max_value = max([max(disc_real_data), max(disc_fake_data), max(generator_data)])
+
         plt.legend(('Discriminator real loss', 'Discriminator fake loss', 'Generator loss'),
                    fontsize=15)
         plt.title('Loss function', fontsize=15)
@@ -321,7 +323,7 @@ class GanNet(object):
         plt.yticks(fontsize=15)
 
         plt.xlim(0, len(disc_real_data))
-        plt.ylim(0, 3)
+        plt.ylim(0, max_value)
 
         fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/plots/loss_{self._epoch_number}.png"))
 

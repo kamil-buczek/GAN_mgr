@@ -4,17 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-tensorflow = "*"
-tensorflow_dataset = "*"
-matplotlib = "*"
-graphviz = "*"
-pydot = "*"
-pydotplus = "*"
-jupyter = "*"
-utils = "*"
-pandas = "*"
-scipy = "*"
-numpy = "*"
+
+
 
 [dev-packages]
 
