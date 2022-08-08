@@ -167,9 +167,9 @@ class GanNet(object):
     def save_loss_data_to_files(self, disc_real, disc_fake, gen):
 
         mapping = {
-            f'{self._data_path}/.loss_disc_fake': disc_fake,
-            f'{self._data_path}/.loss_disc_real': disc_real,
-            f'{self._data_path}/.loss_generator': gen
+            f'{self._data_path}/.loss_disc_fake': round(disc_fake, 2),
+            f'{self._data_path}/.loss_disc_real': round(disc_real, 2),
+            f'{self._data_path}/.loss_generator': round(gen, 2)
         }
 
         for file_name, data in mapping.items():
@@ -178,7 +178,7 @@ class GanNet(object):
 
     def save_time_to_file(self, start_time, end_time):
 
-        seconds_elapsed = end_time - start_time
+        seconds_elapsed = round(end_time - start_time, 2)
         hours, rest = divmod(seconds_elapsed, 3600)
         minutes, seconds = divmod(rest, 60)
         print(f'----> Epoch training time: {hours}h {minutes}m, {int(seconds)}s')
@@ -323,7 +323,7 @@ class GanNet(object):
         plt.yticks(fontsize=15)
 
         plt.xlim(0, len(disc_real_data))
-        plt.ylim(0, max_value)
+        plt.ylim(0, max_value + 1)
 
         fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/plots/loss_{self._epoch_number}.png"))
 

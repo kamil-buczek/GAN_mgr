@@ -3,7 +3,7 @@ import os
 import random
 from time import time, strftime
 # Local
-from gan.GAN import GanNet
+from GAN import GanNet
 # External
 from tensorflow.keras.layers import Input, Embedding, Dense, Reshape, \
     Concatenate, Conv2D, LeakyReLU, Flatten, Dropout, Conv2DTranspose
