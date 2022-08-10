@@ -103,7 +103,7 @@ class CGanNet(GanNet):
         # Generator Input (latent vector)
         in_lat = Input(shape=(self._latent_dimension,), name='Gen-Latent-Input-Layer')
 
-        # Foundation for 7x7 image
+        # Foundation for image
         n_nodes = 128 * init_width * init_height
         gen = Dense(n_nodes, name='Gen-Foundation-Layer')(in_lat)
         gen = LeakyReLU(alpha=0.2, name='Gen-Foundation-Layer-Activation')(gen)
@@ -112,12 +112,12 @@ class CGanNet(GanNet):
         # Merge image gen and label input
         merge = Concatenate(name='Gen-Combine-Layer')([gen, li])
 
-        # Upsample to 14x14
+        # Upsample 1
         gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
                               name='Gen-Upsample-1-Layer')(merge)
         gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-1-Layer-Activation')(gen)
 
-        # Upsample to 28x28
+        # Upsample 2
         gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
                               name='Gen-Upsample-2-Layer')(gen)
         gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-2-Layer-Activation')(gen)
@@ -312,7 +312,6 @@ class CGanNet(GanNet):
                 cnt += 1
         fig.set_facecolor('white')
         plt.show()
-
 
     def show_one_image_with_label(self, label_num: int):
         noise, _ = self.generate_generator_inputs(size=1)
