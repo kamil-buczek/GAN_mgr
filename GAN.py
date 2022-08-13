@@ -23,6 +23,8 @@ class GanNet(object):
                  batch_size: int,
                  image_width: int,
                  image_height: int,
+                 learning_rate: float,
+                 dropout_rate: float,
                  number_of_channels: int,
                  latent_dimension: int,
                  training_data,
@@ -32,6 +34,8 @@ class GanNet(object):
         self._net_name: str = net_name
         self._batch_size: int = batch_size
         self._half_batch_size = int(self._batch_size / 2)
+        self._dropout_rate = dropout_rate
+        self._learning_rate = learning_rate
 
         if batches_per_epoch:
             self._batches_per_epoch: int = batches_per_epoch
@@ -69,10 +73,10 @@ class GanNet(object):
         model.add(LeakyReLU(alpha=0.2))
 
         model.add(Flatten())
-        model.add(Dropout(0.4))
+        model.add(Dropout(self._dropout_rate))
 
         model.add(Dense(1, activation='sigmoid'))
-        opt = Adam(learning_rate=0.0002, beta_1=0.5)
+        opt = Adam(learning_rate=self._learning_rate, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
         self._discriminator = model
 
@@ -106,7 +110,7 @@ class GanNet(object):
         # add the discriminator
         model.add(self._discriminator)
         # compile model
-        opt = Adam(learning_rate=0.0002, beta_1=0.5)
+        opt = Adam(learning_rate=self._learning_rate, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt)
         self._gan = model
 

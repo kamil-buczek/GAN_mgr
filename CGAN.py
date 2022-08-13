@@ -21,6 +21,8 @@ class CGanNet(GanNet):
                  batch_size: int,
                  image_width: int,
                  image_height: int,
+                 learning_rate: float,
+                 dropout_rate: float,
                  number_of_channels: int,
                  latent_dimension: int,
                  training_data,
@@ -34,6 +36,8 @@ class CGanNet(GanNet):
                                       batch_size,
                                       image_width,
                                       image_height,
+                                      learning_rate,
+                                      dropout_rate,
                                       number_of_channels,
                                       latent_dimension,
                                       training_data,
@@ -73,7 +77,7 @@ class CGanNet(GanNet):
         # Flatten
         fe = Flatten(name='Disc-Flatten-Layer')(fe)
         # Dropout
-        fe = Dropout(0.4, name='Disc-Flatten-Layer-Dropout')(fe)
+        fe = Dropout(self._dropout_rate, name='Disc-Flatten-Layer-Dropout')(fe)
 
         # Output Layer
         out_layer = Dense(1, activation='sigmoid', name='Disc-Output-Layer')(fe)
@@ -82,7 +86,7 @@ class CGanNet(GanNet):
         model = Model([in_image, in_label], out_layer, name='Discriminator-Model')
 
         # Compile model
-        opt = Adam(learning_rate=0.0002, beta_1=0.5)
+        opt = Adam(learning_rate=self._learning_rate, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
         self._discriminator = model
 
@@ -123,7 +127,6 @@ class CGanNet(GanNet):
         gen = LeakyReLU(alpha=0.2, name='Gen-Upsample-2-Layer-Activation')(gen)
 
         # Output
-        # out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(init_width, init_height), activation='tanh', padding='same', name='Gen-Output-Layer')(gen)
         out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(7, 7), activation='tanh', padding='same',
                            name='Gen-Output-Layer')(gen)
 
@@ -149,7 +152,7 @@ class CGanNet(GanNet):
         model = Model([gen_noise, gen_label], gan_output, name='Conditional-DCGAN')
 
         # Compile model
-        opt = Adam(learning_rate=0.0002, beta_1=0.5)
+        opt = Adam(learning_rate=self._learning_rate, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt)
         self._gan = model
 
@@ -295,6 +298,7 @@ class CGanNet(GanNet):
         return random_labels_groups
 
     def show_sample_images_with_labels(self):
+
         x_fake, _ = self.generate_fake_images(size=25)
         # images = (x_fake[0] + 1) / 2.0
         images = np.clip(x_fake[0], 0, 1)
@@ -318,6 +322,6 @@ class CGanNet(GanNet):
         label_arr = np.array([label_num])
         image = self._generator.predict([noise, label_arr])
         image = np.clip(image, 0, 1)
-        # image = (image + 1) / 2.0
+        image = (image + 1) / 2.0
         plt.axis('off')
         plt.imshow(np.squeeze(image), cmap='gray')
