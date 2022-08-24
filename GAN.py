@@ -23,8 +23,10 @@ class GanNet(object):
                  batch_size: int,
                  image_width: int,
                  image_height: int,
-                 learning_rate: float,
+                 learning_rate_disc: float,
+                 learning_rate_gan: float,
                  dropout_rate: float,
+                 num_conv_layers: int,
                  number_of_channels: int,
                  latent_dimension: int,
                  training_data,
@@ -35,7 +37,8 @@ class GanNet(object):
         self._batch_size: int = batch_size
         self._half_batch_size = int(self._batch_size / 2)
         self._dropout_rate = dropout_rate
-        self._learning_rate = learning_rate
+        self._learning_rate_disc = learning_rate_disc
+        self._learning_rate_gan = learning_rate_gan
 
         if batches_per_epoch:
             self._batches_per_epoch: int = batches_per_epoch
@@ -44,14 +47,16 @@ class GanNet(object):
 
         self._data_path = f'{os.getcwd()}/{self._net_name}_data'
 
+        self._num_conv_layers = num_conv_layers
+
         self._image_width: int = image_width
         self._image_height: int = image_height
         self._number_of_channels: int = number_of_channels
         self._latent_dimension: int = latent_dimension
 
         self._input_shape: tuple = (self._image_width, self._image_height, self._number_of_channels)
-        self._generator_initial_image_width = int(self._image_width / 4)
-        self._generator_initial_image_height = int(self._image_height / 4)
+        self._generator_initial_image_width = int(self._image_width / (2**self._num_conv_layers))
+        self._generator_initial_image_height = int(self._image_height / (2**self._num_conv_layers))
 
         self._discriminator = None
         self._generator = None
@@ -62,6 +67,8 @@ class GanNet(object):
 
         self._epoch_number_path = f'{self._data_path}/.epoch'
         self._epoch_number = 1
+
+
 
     def define_discriminator(self):
         model = Sequential()
@@ -76,7 +83,7 @@ class GanNet(object):
         model.add(Dropout(self._dropout_rate))
 
         model.add(Dense(1, activation='sigmoid'))
-        opt = Adam(learning_rate=self._learning_rate, beta_1=0.5)
+        opt = Adam(learning_rate=self._learning_rate_disc, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
         self._discriminator = model
 
@@ -110,7 +117,7 @@ class GanNet(object):
         # add the discriminator
         model.add(self._discriminator)
         # compile model
-        opt = Adam(learning_rate=self._learning_rate, beta_1=0.5)
+        opt = Adam(learning_rate=self._learning_rate_gan, beta_1=0.5)
         model.compile(loss='binary_crossentropy', optimizer=opt)
         self._gan = model
 
@@ -174,6 +181,17 @@ class GanNet(object):
             f'{self._data_path}/.loss_disc_fake': round(disc_fake, 2),
             f'{self._data_path}/.loss_disc_real': round(disc_real, 2),
             f'{self._data_path}/.loss_generator': round(gen, 2)
+        }
+
+        for file_name, data in mapping.items():
+            with open(file_name, 'a') as file:
+                file.write(f'{str(data)}\n')
+
+    def save_accuracy_data_to_files(self, disc_real, disc_fake):
+
+        mapping = {
+            f'{self._data_path}/.acc_disc_fake': round(disc_fake, 2),
+            f'{self._data_path}/.acc_disc_real': round(disc_real, 2),
         }
 
         for file_name, data in mapping.items():
