@@ -112,8 +112,6 @@ class CGanNet(GanNet):
         # Scale up to image dimensions
         n_nodes = init_width * init_height
         li = Dense(n_nodes, name='Gen-Label-Dense-Layer')(li)
-        if self._batch_norm:
-            li = BatchNormalization()(li)
         li = Reshape((init_width, init_height, 1), name='Gen-Label-Reshape_Layer')(li)
 
         # Generator Input (latent vector)
@@ -122,6 +120,8 @@ class CGanNet(GanNet):
         # Foundation for image
         n_nodes = self._generator_dense_units * init_width * init_height
         gen = Dense(n_nodes, name='Gen-Foundation-Layer')(in_lat)
+        if self._batch_norm:
+            gen = BatchNormalization(momentum=0.9)(gen)
         gen = LeakyReLU(alpha=0.2, name='Gen-Foundation-Layer-Activation')(gen)
         gen = Reshape((init_width, init_height, self._generator_dense_units), name='Gen-Foundation-Layer-Reshape')(gen)
 
@@ -131,12 +131,12 @@ class CGanNet(GanNet):
         for _ in range(self._num_conv_layers):
             gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
                                   name=f'Gen-Upsample-{_ + 1}-Layer')(gen)
+            if self._batch_norm:
+                gen = BatchNormalization(momentum=0.9, name=f'Gen-Upsample--{_ + 1}-Layer-Batch-Normalization')(gen)
             gen = LeakyReLU(alpha=0.2, name=f'Gen-Upsample-{_ + 1}-Layer-Activation')(gen)
-            # if self._batch_norm and _ < self._num_conv_layers - 1:
-            #    gen = BatchNormalization(name=f'Gen-Upsample--{_ + 1}-Layer-Batch-Normalization')(gen)
 
         # Output
-        out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(7, 7), activation='tanh', padding='same',
+        out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(4, 4), activation='tanh', padding='same',
                            name='Gen-Output-Layer')(gen)
 
         # define model
@@ -273,20 +273,26 @@ class CGanNet(GanNet):
         self.get_training_time()
 
     def save_sample_of_images_with_labels(self):
+
         rows = 5
         cols = 5
+        cnt = 0
 
-        generator_inputs, labels = self.generate_generator_inputs(size=25)
+        # if self._number_of_classes < 5:
+        #     rows = self._number_of_classes
+        #     cols = self._number_of_classes
+
+        generator_inputs, labels = self.generate_generator_inputs(size=5*rows)
         random_labels = self.get_random_labels_list(5)
+
         labels = np.asarray(random_labels)
         gen_imgs = self._generator.predict([generator_inputs, labels])
 
-        # gen_imgs = 0.5 * (gen_imgs + 1)
-        gen_imgs = np.clip(gen_imgs, 0, 1)
+        # gen_imgs = np.clip(gen_imgs, 0, 1)
+        gen_imgs = (gen_imgs + 1) / 2.0
+        gen_imgs = (gen_imgs*255).astype(np.uint8)
 
         fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
-        cnt = 0
-
         for i in range(rows):
             for j in range(cols):
                 axs[i, j].set_title(f'({labels[cnt]}) {self._labels_names[labels[cnt]]}')
@@ -298,11 +304,17 @@ class CGanNet(GanNet):
         plt.close()
 
     def get_random_labels_list(self, size: int = 5) -> list:
+
+        if size > self._number_of_classes:
+            size = self._number_of_classes
+
         random_labels_part = []
         while len(random_labels_part) < size:
-            random_label = random.randint(0, self._number_of_classes - 1)
+            random_label = random.randint(0, self._number_of_classes-1)
             if random_label not in random_labels_part:
                 random_labels_part.append(random_label)
+
+        random_labels_part = [0, 1, 1, 2, 2]
 
         random_labels_groups = []
         for _ in range(5):
@@ -311,9 +323,9 @@ class CGanNet(GanNet):
 
     def show_sample_images_with_labels(self, same=None):
 
-        # x_fake, _ = self.generate_fake_images(size=25)
-        # images = (x_fake[0] + 1) / 2.0
-        # images = np.clip(x_fake[0], 0, 1)
+        rows = 5
+        cols = 5
+        cnt = 0
 
         generator_inputs, _ = self.generate_generator_inputs(size=25)
         if same:
@@ -323,11 +335,10 @@ class CGanNet(GanNet):
         labels = np.asarray(random_labels)
         gen_imgs = self._generator.predict([generator_inputs, labels])
 
-        rows = 5
-        cols = 5
-        cnt = 0
+        # gen_imgs = np.clip(gen_imgs, 0, 1)
+        gen_imgs = (gen_imgs + 1) / 2.0
+        gen_imgs = (gen_imgs*255).astype(np.uint8)
 
-        gen_imgs = np.clip(gen_imgs, 0, 1)
         fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
         for i in range(rows):
             for j in range(cols):

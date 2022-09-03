@@ -10,6 +10,7 @@ tensorflow-datasets = "==4.6.0"
 matplotlib = "==3.5.2"
 numpy = "==1.23.1"
 pydot = "==1.4.2"
+scipy = "*"
 
 [dev-packages]
 
