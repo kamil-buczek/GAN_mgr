@@ -29,10 +29,11 @@ if __name__ == "__main__":
     networks_path = '/home/kamil/Magisterka/time_plot'
     # network_name2 = 'Basic_network'
     # network_name = 'Network_128x128'
+    networks_names = ['Last_CGAN']
 
     # networks_names = ['Basic_network', 'Network_No_Dropout', 'Network_Dropout_0.1', 'Network_Dropout_0.25', 'Network_Dropout_0.5']
-    networks_names = ['Basic_network', 'Network_LR_Both_0.001', 'Network_LR_Both_0.0004', 'Network_LR_Both_0.00005',
-                      'Network_LR_Discriminator_0.00005', 'Network_LR_Gan_0.00005']
+    #networks_names = ['Basic_network', 'Network_LR_Both_0.001', 'Network_LR_Both_0.0004', 'Network_LR_Both_0.00005',
+    #                  'Network_LR_Discriminator_0.00005', 'Network_LR_Gan_0.00005']
 
     for _ in networks_names:
         get_training_time(f'{networks_path}/{_}')

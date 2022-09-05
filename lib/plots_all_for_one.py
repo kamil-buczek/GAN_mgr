@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 
-EPOCH = 100
+EPOCH = 2200
 BATCHES = EPOCH * 192
 
 
@@ -49,7 +49,7 @@ def plot_loss(network_name: str, plot_title: str, networks_path: str, width: flo
         network_loss_data: list = load_loss_data_from_file(network, network_path)
         network_loss_data: list = avg_loss_data(network_loss_data, avg=avg)
 
-        plt.plot([_ for _ in network_loss_data], linewidth=3, )
+        plt.plot([_ for _ in network_loss_data], linewidth=1, )
         # plt.plot([_ for _ in disc_fake_data], color='green', linewidth=0.5)
         legends.append(network)
 
@@ -61,8 +61,8 @@ def plot_loss(network_name: str, plot_title: str, networks_path: str, width: flo
 
     plt.xlabel('epoch', fontsize=30)
     plt.ylabel('loss', fontsize=30)
-    plt.xticks(np.arange(0, width, 20), fontsize=20)
-    plt.yticks(np.arange(0, height, 100), fontsize=20)
+    plt.xticks(np.arange(0, width, 200), fontsize=20)
+    plt.yticks(np.arange(0, height, 0.2), fontsize=20)
 
     plt.xlim(0, plot_width)
     plt.ylim(0, plot_height)
@@ -74,7 +74,8 @@ if __name__ == "__main__":
 
     networks_path = '/home/kamil/Magisterka/time_plot'
     # networks_name = 'Basic_network'
-    networks_name = 'Network_LR_Both_0.001'
+    # networks_name = 'Network_LR_Both_0.001'
+    networks_name = 'Last_CGAN'
     # networks_names = [f'{networks_path}/{_}' for _ in networks_names]
 
-    plot_loss(networks_name, '', networks_path, width=EPOCH, height=500, avg=192)
+    plot_loss(networks_name, '', networks_path, width=EPOCH, height=2, avg=281)

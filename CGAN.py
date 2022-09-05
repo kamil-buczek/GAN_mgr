@@ -356,7 +356,8 @@ class CGanNet(GanNet):
         label = np.asarray([label_num])
         # label_arr = np.array([label_num])
         image = self._generator.predict([noise, label])
-        image = np.clip(image, 0, 1)
-        # image = (image + 1) / 2.0
+        # image = np.clip(image, 0, 1)
+        image = (image + 1) / 2.0
+        image = (image * 255).astype(np.uint8)
         plt.axis('off')
         plt.imshow(np.squeeze(image), cmap='gray')
