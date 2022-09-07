@@ -34,6 +34,7 @@ class CGanNet(GanNet):
                  labels_names,
                  number_of_classes: int,
                  batches_per_epoch: int = None,
+                 kernel_size: int = 7
                  ):
 
         super(CGanNet, self).__init__(net_name,
@@ -55,6 +56,7 @@ class CGanNet(GanNet):
         self._labels_names = labels_names
         self._generator_dense_units = generator_dense_units
         self._batch_norm = batch_norm
+        self._kernel_size = kernel_size
 
     def define_discriminator(self):
         # Label Inputs
@@ -79,7 +81,6 @@ class CGanNet(GanNet):
             fe = LeakyReLU(alpha=0.2, name=f'Disc-Downsample-{_ + 1}-Layer-Activation')(fe)
             # if self._batch_norm and _ < self._num_conv_layers - 1:
             #    fe = BatchNormalization(name=f'Disc-Downsample-{_ + 1}-Layer-Batch-Normalization')(fe)
-
 
         # Flatten
         fe = Flatten(name='Disc-Flatten-Layer')(fe)
@@ -136,7 +137,7 @@ class CGanNet(GanNet):
             gen = LeakyReLU(alpha=0.2, name=f'Gen-Upsample-{_ + 1}-Layer-Activation')(gen)
 
         # Output
-        out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(4, 4), activation='tanh', padding='same',
+        out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(self._kernel_size, self._kernel_size), activation='tanh', padding='same',
                            name='Gen-Output-Layer')(gen)
 
         # define model
@@ -314,30 +315,30 @@ class CGanNet(GanNet):
             if random_label not in random_labels_part:
                 random_labels_part.append(random_label)
 
-        random_labels_part = [0, 1, 1, 2, 2]
+        if self._number_of_classes == 3:
+            random_labels_part = [0, 1, 1, 2, 2]
 
         random_labels_groups = []
         for _ in range(5):
             random_labels_groups.extend(random_labels_part)
         return random_labels_groups
 
-    def show_sample_images_with_labels(self, same=None):
+    def show_sample_images_with_labels(self, old_img_format: bool = True):
 
         rows = 5
         cols = 5
         cnt = 0
 
         generator_inputs, _ = self.generate_generator_inputs(size=25)
-        if same:
-            random_labels = [same for _ in range(25)]
-        else:
-            random_labels = self.get_random_labels_list(5)
+        random_labels = self.get_random_labels_list(5)
         labels = np.asarray(random_labels)
         gen_imgs = self._generator.predict([generator_inputs, labels])
 
-        # gen_imgs = np.clip(gen_imgs, 0, 1)
-        gen_imgs = (gen_imgs + 1) / 2.0
-        gen_imgs = (gen_imgs*255).astype(np.uint8)
+        if old_img_format:
+            gen_imgs = np.clip(gen_imgs, 0, 1)
+        else:
+            gen_imgs = (gen_imgs + 1) / 2.0
+            gen_imgs = (gen_imgs*255).astype(np.uint8)
 
         fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
         for i in range(rows):
@@ -349,15 +350,15 @@ class CGanNet(GanNet):
         fig.set_facecolor('white')
         plt.show()
 
-    def show_one_image_with_label(self, label_num: int):
+    def show_one_image_with_label(self, label_num: int, old_img_format: bool = True):
         noise, _ = self.generate_generator_inputs(size=1)
-
-        # random_labels = self.get_random_labels_list(5)
         label = np.asarray([label_num])
-        # label_arr = np.array([label_num])
         image = self._generator.predict([noise, label])
-        # image = np.clip(image, 0, 1)
-        image = (image + 1) / 2.0
-        image = (image * 255).astype(np.uint8)
+
+        if old_img_format:
+            image = np.clip(image, 0, 1)
+        else:
+            image = (image + 1) / 2.0
+            image = (image * 255).astype(np.uint8)
         plt.axis('off')
         plt.imshow(np.squeeze(image), cmap='gray')
