@@ -59,146 +59,134 @@ class CGanNet(GanNet):
         self._kernel_size = kernel_size
 
     def define_discriminator(self):
-        # Label Inputs
-        in_label = Input(shape=(1,), name='Disc-Label-Input-Layer')
-        li = Embedding(self._number_of_classes, 50, name='Disc-Label-Embedding-Layer')(in_label)
-
-        # Scale up to image dimensions
+        # Przekształcenie etykiety do postaci kanału obrazu
+        label_input = Input(shape=(1,), name='Disc-Label-Input-Layer')
+        label_layer = Embedding(self._number_of_classes, 50, name='Disc-Label-Embedding-Layer')(label_input)
         n_nodes = self._input_shape[0] * self._input_shape[1]
-        li = Dense(n_nodes, name='Disc-Label-Dense_layer')(li)
-        li = Reshape((self._input_shape[0], self._input_shape[1], 1), name='Disc-Label-Reshape-Layer')(
-            li)  # Reshape to image size but with only one channel
+        label_layer = Dense(n_nodes, name='Disc-Label-Dense_layer')(label_layer)
+        label_layer = Reshape((self._input_shape[0], self._input_shape[1], 1), name='Disc-Label-Reshape-Layer')(label_layer)
 
-        # Image input
-        in_image = Input(shape=self._input_shape, name='Disc-Image-Input-Layer')
+        # Obraz do oceny przez dyskryminator
+        image_input = Input(shape=self._input_shape, name='Disc-Image-Input-Layer')
 
-        # Concat label as a channel
-        fe = Concatenate(name='Disc-Combine-Layers')([in_image, li])
+        # Połączenie obrazu z etykietą
+        image_layer = Concatenate(name='Disc-Combine-Layers')([image_input, label_layer])
 
         for _ in range(self._num_conv_layers):
-            fe = Conv2D(filters=128, kernel_size=(3, 3), strides=(2, 2), padding='same',
-                        name=f'Disc-Downsample-{_ + 1}-Layer')(fe)
-            fe = LeakyReLU(alpha=0.2, name=f'Disc-Downsample-{_ + 1}-Layer-Activation')(fe)
-            # if self._batch_norm and _ < self._num_conv_layers - 1:
-            #    fe = BatchNormalization(name=f'Disc-Downsample-{_ + 1}-Layer-Batch-Normalization')(fe)
+            image_layer = Conv2D(filters=128, kernel_size=(3, 3), strides=(2, 2), padding='same',
+                        name=f'Disc-Downsample-{_ + 1}-Layer')(image_layer)
+            image_layer = LeakyReLU(alpha=0.2, name=f'Disc-Downsample-{_ + 1}-Layer-Activation')(image_layer)
 
-        # Flatten
-        fe = Flatten(name='Disc-Flatten-Layer')(fe)
-        # Dropout
+        # Spłaszczenie do postaci pojedynczego wektora
+        flatten_image = Flatten(name='Disc-Flatten-Layer')(image_layer)
+        # Dodanie warstwy dropout
         if self._dropout_rate:
-            fe = Dropout(self._dropout_rate, name='Disc-Flatten-Layer-Dropout')(fe)
+            flatten_image = Dropout(self._dropout_rate, name='Disc-Flatten-Layer-Dropout')(flatten_image)
         else:
             print("Nie ustawiono dropout_rate. Usuwam warstwe Dropout z modelu dyskryminatora")
 
-        # Output Layer
-        out_layer = Dense(1, activation='sigmoid', name='Disc-Output-Layer')(fe)
+        # Warstwa wyjsciowa jako liczba z zakresu [0,1]
+        output_layer = Dense(1, activation='sigmoid', name='Disc-Output-Layer')(flatten_image)
 
-        # Define model
-        model = Model([in_image, in_label], out_layer, name='Discriminator-Model')
+        # Uworzenie modelu dyskryminatora
+        discriminator_model = Model([image_input, label_input], output_layer, name='Discriminator-Model')
 
-        # Compile model
-        opt = Adam(learning_rate=self._learning_rate_disc, beta_1=0.5)
-        model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
-        self._discriminator = model
+        # Kompilacja modelu dyskryminatora
+        optymlizator = Adam(learning_rate=self._learning_rate_disc, beta_1=0.5)
+        discriminator_model.compile(loss='binary_crossentropy', optimizer=optymlizator, metrics=['accuracy'])
+        self._discriminator = discriminator_model
 
     def define_generator(self):
+        # Początkowa rozdzielczość obrazu, przed przejściem przez warstwy konwolucyjne
+        start_width = self._start_image_width
+        start_height = self._start_image_height
 
-        init_width = self._generator_initial_image_width
-        init_height = self._generator_initial_image_height
+        # Przekształcenie etykiety do postaci kanału obrazu
+        label_input = Input(shape=(1,), name='Gen-Label-Input-layer')
+        label_layer = Embedding(self._number_of_classes, 50, name='Gen-Label-Embedding-Layer')(label_input)
+        n_nodes = start_width * start_height
+        label_layer = Dense(n_nodes, name='Gen-Label-Dense-Layer')(label_layer)
+        label_layer = Reshape((start_width, start_height, 1), name='Gen-Label-Reshape_Layer')(label_layer)
 
-        # Label input
-        in_label = Input(shape=(1,), name='Gen-Label-Input-layer')
-        li = Embedding(self._number_of_classes, 50, name='Gen-Label-Embedding-Layer')(in_label)
-
-        # Scale up to image dimensions
-        n_nodes = init_width * init_height
-        li = Dense(n_nodes, name='Gen-Label-Dense-Layer')(li)
-        li = Reshape((init_width, init_height, 1), name='Gen-Label-Reshape_Layer')(li)
-
-        # Generator Input (latent vector)
-        in_lat = Input(shape=(self._latent_dimension,), name='Gen-Latent-Input-Layer')
-
-        # Foundation for image
-        n_nodes = self._generator_dense_units * init_width * init_height
-        gen = Dense(n_nodes, name='Gen-Foundation-Layer')(in_lat)
+        # Przekształcenie latent wektora do postaci obrazu
+        latent_vector_input = Input(shape=(self._latent_dimension,), name='Gen-Latent-Input-Layer')
+        n_nodes = self._generator_dense_units * start_width * start_height
+        image_layer = Dense(n_nodes, name='Gen-Foundation-Layer')(latent_vector_input)
         if self._batch_norm:
-            gen = BatchNormalization(momentum=0.9)(gen)
-        gen = LeakyReLU(alpha=0.2, name='Gen-Foundation-Layer-Activation')(gen)
-        gen = Reshape((init_width, init_height, self._generator_dense_units), name='Gen-Foundation-Layer-Reshape')(gen)
+            image_layer = BatchNormalization(momentum=0.9)(image_layer)
+        image_layer = LeakyReLU(alpha=0.2, name='Gen-Foundation-Layer-Activation')(image_layer)
+        image_layer = Reshape((start_width, start_height, self._generator_dense_units), name='Gen-Foundation-Layer-Reshape')(image_layer)
 
-        # Merge image gen and label input
-        gen = Concatenate(name='Gen-Combine-Layer')([gen, li])
+        # Połączenie obrazu z etykietą
+        image_layer = Concatenate(name='Gen-Combine-Layer')([image_layer, label_layer])
 
         for _ in range(self._num_conv_layers):
-            gen = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
-                                  name=f'Gen-Upsample-{_ + 1}-Layer')(gen)
+            image_layer = Conv2DTranspose(filters=128, kernel_size=(4, 4), strides=(2, 2), padding='same',
+                                  name=f'Gen-Upsample-{_ + 1}-Layer')(image_layer)
             if self._batch_norm:
-                gen = BatchNormalization(momentum=0.9, name=f'Gen-Upsample--{_ + 1}-Layer-Batch-Normalization')(gen)
-            gen = LeakyReLU(alpha=0.2, name=f'Gen-Upsample-{_ + 1}-Layer-Activation')(gen)
+                image_layer = BatchNormalization(momentum=0.9, name=f'Gen-Upsample--{_ + 1}-Layer-Batch-Normalization')(image_layer)
+            image_layer = LeakyReLU(alpha=0.2, name=f'Gen-Upsample-{_ + 1}-Layer-Activation')(image_layer)
 
-        # Output
-        out_layer = Conv2D(filters=self._number_of_channels, kernel_size=(self._kernel_size, self._kernel_size), activation='tanh', padding='same',
-                           name='Gen-Output-Layer')(gen)
+        # Wygenerowany obraz na wyjściu z sieci
+        output_layer = Conv2D(filters=self._number_of_channels, kernel_size=(self._kernel_size, self._kernel_size), activation='tanh', padding='same',
+                           name='Gen-Output-Layer')(image_layer)
 
-        # define model
-        model = Model([in_lat, in_label], out_layer, name='Generator-Model')
-        self._generator = model
+        # Utworzenie modelu generatora
+        generator_model = Model([latent_vector_input, label_input], output_layer, name='Generator-Model')
+        self._generator = generator_model
 
     def define_gan(self):
 
-        # Make weights in the discriminator not trainable
+        # Podczas treningu połączonego modelu ma trenować tylko generator, więc blokujemy uczenie dla dyskryminatora
         self._discriminator.trainable = False
 
-        # Get noise and label inputs from generator model
-        gen_noise, gen_label = self._generator.input
+        # Szumy i etykiety z wejścia generatora
+        generator_input_noise, generator_input_label = self._generator.input
 
-        # Get image output from the generator model
-        gen_output = self._generator.output
+        # Obraz wyjściowy z generatora
+        generator_output = self._generator.output
 
         # Connect image output and label input from generator as inputs to discriminator
-        gan_output = self._discriminator([gen_output, gen_label])
+        gan_output = self._discriminator([generator_output, generator_input_label])
 
-        # Define gan model as taking noise and label and outputting a classification
-        model = Model([gen_noise, gen_label], gan_output, name='Conditional-DCGAN')
+        # Połączony model na wejściu otrzymuję losowy szum i etykietę i zwraca liczbę z zakresu [0,1]
+        model_gan = Model([generator_input_noise, generator_input_label], gan_output, name='Conditional-DCGAN')
 
-        # Compile model
-        opt = Adam(learning_rate=self._learning_rate_gan, beta_1=0.5)
-        model.compile(loss='binary_crossentropy', optimizer=opt)
-        self._gan = model
+        # Kompilacja modelu
+        optymalizator = Adam(learning_rate=self._learning_rate_gan, beta_1=0.5)
+        model_gan.compile(loss='binary_crossentropy', optimizer=optymalizator)
+        self._gan = model_gan
 
     def generate_real_images(self):
-        # Choose random instances
-        indexes = np.random.randint(0, self._training_data_size, self._half_batch_size)
-        real_image_from_training_data = self._training_data[indexes]
-        real_label_from_labels_data = self._labels_data[indexes]
+        # Wylosuj obrazy i ich etykiety ze zbioru treningowego
+        random_numbers = np.random.randint(0, self._training_data_size, self._half_batch_size)
+        random_images = self._training_data[random_numbers]
+        random_labels = self._labels_data[random_numbers]
 
-        # Generate expected response for real images = 1
-        expected_responses_for_real_images = np.ones((self._half_batch_size, 1))
-        return [real_image_from_training_data, real_label_from_labels_data], expected_responses_for_real_images
+        # Oczekiwana wartosc zwrocona prze dyskryminatora dla prawdziwego obrazu to 1
+        expected_responses = np.ones((self._half_batch_size, 1))
+        return [random_images, random_labels], expected_responses
 
     def generate_generator_inputs(self, size: int):
-        # Generate points in the latent space
-        x_input = np.random.randn(self._latent_dimension * size)
-
-        # Reshape into a batch of inputs for the network
-        generator_input = x_input.reshape(size, self._latent_dimension)
-
-        # Generate labels
-        labels = np.random.randint(0, self._number_of_classes, size)
-        return [generator_input, labels]
+        # Wylosuj liczby z rozkładu normalnego i przekształć do postaci wektora
+        random_latent_numbers = np.random.randn(self._latent_dimension * size)
+        generator_input = random_latent_numbers.reshape(size, self._latent_dimension)
+        # Losowanie etykiety
+        labels_input = np.random.randint(0, self._number_of_classes, size)
+        return [generator_input, labels_input]
 
     def generate_fake_images(self, size: int = None):
 
         if not size:
             size = self._half_batch_size
 
-        # Generate points in latent space
-        generator_inputs, labels_input = self.generate_generator_inputs(size=size)
-        # Predict outputs
-        fake_images = self._generator.predict([generator_inputs, labels_input])
-        # Create class labels
-        expected_responses_for_fake_images = np.zeros((self._half_batch_size, 1))
-        return [fake_images, labels_input], expected_responses_for_fake_images
+        # Latent wektor i etykieta
+        latent_inputs, labels_input = self.generate_generator_inputs(size=size)
+        # Wygeneruj obraz
+        generated_image = self._generator.predict([latent_inputs, labels_input])
+        # Dla fałszywych obrazow dyskryminator ma zwrócić 0
+        expected_response = np.zeros((self._half_batch_size, 1))
+        return [generated_image, labels_input], expected_response
 
     def train(self, number_of_epochs: int, load_past_model: bool = True):
         print(f'Number of images in dataset: {self._training_data_size}')
@@ -210,7 +198,7 @@ class CGanNet(GanNet):
         else:
             self.archive_old_model()
             self.clear_files_structure()
-            self.create_files_structure()
+            self.create_directories()
 
         for epoch_number in range(number_of_epochs):
             print('------------------------------------------------------------')
@@ -226,21 +214,21 @@ class CGanNet(GanNet):
             discriminator_fake_images_accuracy = 0
 
             for batch_number in range(self._batches_per_epoch):
-                # Discriminator train on real images
+                # Uczenie na prawdziwych obrazach
                 [real_images, real_labels], real_answers = self.generate_real_images()
                 discriminator_real_images_loss, discriminator_real_images_accuracy = \
                     self._discriminator.train_on_batch([real_images, real_labels], real_answers)
 
-                # Discriminator train on fake images
+                # Uczenie na fałszywych obrazach
                 [fake_images, fake_labels], fake_answers = self.generate_fake_images()
                 discriminator_fake_images_loss, discriminator_fake_images_accuracy = \
                     self._discriminator.train_on_batch([fake_images, fake_labels], fake_answers)
 
-                # Prepare points in latent space as input for the generator
+                # Wejście dla generatora
                 [generator_random_input_vector, labels_input] = self.generate_generator_inputs(size=self._batch_size)
-                # Create inverted labels for the fake samples
+                # Chcemy oszukać dyskryminatora, czyli ma zwrócić 1
                 generator_expected_answers = np.ones((self._batch_size, 1))
-                # Update the generator via the discriminator's error
+                # Uczenie generatora
                 generator_loss = self._gan.train_on_batch([generator_random_input_vector, labels_input],
                                                           generator_expected_answers)
                 # Update progress bar

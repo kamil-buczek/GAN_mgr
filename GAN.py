@@ -55,8 +55,8 @@ class GanNet(object):
         self._latent_dimension: int = latent_dimension
 
         self._input_shape: tuple = (self._image_width, self._image_height, self._number_of_channels)
-        self._generator_initial_image_width = int(self._image_width / (2**self._num_conv_layers))
-        self._generator_initial_image_height = int(self._image_height / (2**self._num_conv_layers))
+        self._start_image_width = int(self._image_width / (2**self._num_conv_layers))
+        self._start_image_height = int(self._image_height / (2**self._num_conv_layers))
 
         self._discriminator = None
         self._generator = None
@@ -68,86 +68,23 @@ class GanNet(object):
         self._epoch_number_path = f'{self._data_path}/.epoch'
         self._epoch_number = 1
 
-
-
     def define_discriminator(self):
-        model = Sequential()
-
-        model.add(Conv2D(128, (3, 3), strides=(2, 2), padding='same', input_shape=self._input_shape))
-        model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Flatten())
-        model.add(Dropout(self._dropout_rate))
-
-        model.add(Dense(1, activation='sigmoid'))
-        opt = Adam(learning_rate=self._learning_rate_disc, beta_1=0.5)
-        model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
-        self._discriminator = model
+        pass
 
     def define_generator(self):
-        model = Sequential()
-        init_width = self._generator_initial_image_width
-        init_height = self._generator_initial_image_height
-
-        n_nodes = 128 * init_width * init_height
-        model.add(Dense(n_nodes, input_dim=self._latent_dimension))
-
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Reshape((init_width, init_height, 128)))
-
-        model.add(Conv2DTranspose(128, (4, 4), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Conv2DTranspose(128, (4, 4), strides=(2, 2), padding='same'))
-        model.add(LeakyReLU(alpha=0.2))
-
-        model.add(Conv2D(3, (7, 7), activation='tanh', padding='same'))
-        self._generator = model
+        pass
 
     def define_gan(self):
-        # make weights in the discriminator not trainable
-        self._discriminator.trainable = False
-        # connect them
-        model = Sequential()
-        # add generator
-        model.add(self._generator)
-        # add the discriminator
-        model.add(self._discriminator)
-        # compile model
-        opt = Adam(learning_rate=self._learning_rate_gan, beta_1=0.5)
-        model.compile(loss='binary_crossentropy', optimizer=opt)
-        self._gan = model
+        pass
 
     def generate_real_images(self):
-        # choose random instances
-        images_indexes = np.random.randint(0, self._training_data_size, self._half_batch_size)
-        real_image_from_training_data = self._training_data[images_indexes]
-        # generate class labels
-        expected_responses_for_real_images = np.ones((self._half_batch_size, 1))
-        return real_image_from_training_data, expected_responses_for_real_images
+        pass
 
     def generate_generator_inputs(self, size: int):
-        # generate points in the latent space
-        x_input = np.random.randn(self._latent_dimension * size)
-        # reshape into a batch of inputs for the network
-        generator_input = x_input.reshape(size, self._latent_dimension)
-        return generator_input
+        pass
 
     def generate_fake_images(self, size: int = None):
-
-        if not size:
-            size = self._half_batch_size
-
-        # generate points in latent space
-        generator_inputs = self.generate_generator_inputs(size=size)
-        # predict outputs
-        fake_images = self._generator.predict(generator_inputs)
-        # create class labels
-        expected_responses_for_fake_images = np.zeros((self._half_batch_size, 1))
-        return fake_images, expected_responses_for_fake_images
+        pass
 
     def save_sample_of_images(self):
         rows = 5
@@ -254,75 +191,7 @@ class GanNet(object):
 
     # Train the generator and discriminator
     def train(self, number_of_epochs: int, load_past_model: bool = True):
-        print(f'Number of images in dataset: {self._training_data_size}')
-        print(f'Batches per epoch: {self._batches_per_epoch}')
-        print(f'Half batch size is: {self._half_batch_size}')
-
-        if load_past_model:
-            self.load_model()
-        else:
-            self.archive_old_model()
-            self.clear_files_structure()
-            self.create_files_structure()
-
-        for epoch_number in range(number_of_epochs):
-
-            progbar = tf.keras.utils.Progbar(target=self._batches_per_epoch)
-
-            print(f"\n----> Epoch: {self._epoch_number} {epoch_number + 1}/{number_of_epochs}")
-            start_time = time()
-            print(f'---> Start time is: {strftime("%H:%M:%S")}')
-
-            discriminator_real_images_loss = 0
-            discriminator_fake_images_loss = 0
-            generator_loss = 0
-            discriminator_real_images_accuracy = 0
-            discriminator_fake_images_accuracy = 0
-
-            for batch_number in range(self._batches_per_epoch):
-                # get randomly selected 'real' samples
-                real_images, real_answers = self.generate_real_images()
-                # update discriminator model weights
-                discriminator_real_images_loss, discriminator_real_images_accuracy = \
-                    self._discriminator.train_on_batch(real_images, real_answers)
-                # generate 'fake' examples
-                fake_images, fake_answers = self.generate_fake_images()
-                # update discriminator model weights
-                discriminator_fake_images_loss, discriminator_fake_images_accuracy = \
-                    self._discriminator.train_on_batch(fake_images, fake_answers)
-                # prepare points in latent space as input for the generator
-                generator_random_input_vector = self.generate_generator_inputs(self._batch_size)
-                # create inverted labels for the fake samples
-                generator_expected_answers = np.ones((self._batch_size, 1))
-                # update the generator via the discriminator's error
-                generator_loss = self._gan.train_on_batch(generator_random_input_vector, generator_expected_answers)
-                # summarize loss on this batch
-                progbar.update(batch_number + 1)
-
-                # Save loss function data after batch
-                self.save_loss_data_to_files(discriminator_real_images_loss, discriminator_fake_images_loss,
-                                             generator_loss)
-
-            end_time = time()
-            print(f'---> End time is: {strftime("%H:%M:%S")}')
-
-            # Results after epoch
-            print(f"\nD_real_loss: {discriminator_real_images_loss}"
-                  f" D_fake_loss: {discriminator_fake_images_loss}"
-                  f" G_loss: {generator_loss}")
-
-            print(f"D_real_acc: {discriminator_real_images_accuracy}"
-                  f" D_fake_acc: {discriminator_fake_images_accuracy}")
-
-            self.save_time_to_file(start_time, end_time)
-            self.save_weights_to_files()
-            self.save_sample_of_images()
-            self.save_epoch_number_to_file()
-            self._epoch_number = self._epoch_number + 1
-        # After full training
-        self.save_models()
-        self.plot_loss()
-        self.get_training_time()
+        pass
 
     def plot_loss(self):
 
@@ -368,7 +237,7 @@ class GanNet(object):
         # Load weights
         self.load_weights()
 
-    def create_files_structure(self):
+    def create_directories(self):
 
         directories = [
             'sample_images',
