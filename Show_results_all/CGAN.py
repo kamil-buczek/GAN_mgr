@@ -148,7 +148,7 @@ class CGanNet(GanNet):
         # Obraz wyjściowy z generatora
         generator_output = self._generator.output
 
-        # Connect image output and label input from generator as inputs to discriminator
+        # Prześlij wygenerowany obraz i etykietę na wejście dyksryminatora
         gan_output = self._discriminator([generator_output, generator_input_label])
 
         # Połączony model na wejściu otrzymuję losowy szum i etykietę i zwraca liczbę z zakresu [0,1]
@@ -233,10 +233,10 @@ class CGanNet(GanNet):
                 # Uczenie generatora
                 generator_loss = self._gan.train_on_batch([generator_random_input_vector, labels_input],
                                                           generator_expected_answers)
-                # Update progress bar
+                # Aktualizacja paska wskazującego postępy uczenia
                 progbar.update(batch_number + 1)
 
-                # Save loss data
+                # Zapisz informację o funkcji straty do plików
                 self.save_loss_data_to_files(discriminator_real_images_loss, discriminator_fake_images_loss,
                                              generator_loss)
 
@@ -245,7 +245,7 @@ class CGanNet(GanNet):
             end_time = time()
             print(f'---> End time is: {strftime("%H:%M:%S")}')
 
-            # Results after one epoch
+            # Wyniki zwracane po każdej epoce
             print(f"---> D_real_loss: {discriminator_real_images_loss}"
                   f" D_fake_loss: {discriminator_fake_images_loss}"
                   f" G_loss: {generator_loss}")
@@ -258,7 +258,7 @@ class CGanNet(GanNet):
             self.save_sample_of_images_with_labels()
             self.save_epoch_number_to_file()
             self._epoch_number = self._epoch_number + 1
-        # After full training
+        # Czynności do wykonania po zakończeniu uczenia
         self.save_models()
         self.plot_loss()
         self.get_training_time()

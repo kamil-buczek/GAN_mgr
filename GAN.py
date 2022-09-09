@@ -151,14 +151,14 @@ class GanNet(object):
 
         epoch_number = self._epoch_number
 
-        # Save once per 50 epoch
+        # Raz na 50 epok zapisz dodatowo wagi modeli do innych plików
         if epoch_number % 50 == 0:
             self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_{epoch_number}.h5')
             self._discriminator.save_weights(
                 f'{self._data_path}/weights/discriminator/weights_epoch_{epoch_number}.h5')
             self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_{epoch_number}.h5')
 
-        # Save always
+        # Zapisz najnowsze wagi modeli do plików
         self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_latest.h5')
         self._discriminator.save_weights(f'{self._data_path}/weights/discriminator/weights_epoch_latest.h5')
         self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_latest.h5')
