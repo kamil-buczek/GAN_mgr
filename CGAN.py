@@ -263,33 +263,31 @@ class CGanNet(GanNet):
 
     def save_sample_of_images_with_labels(self):
 
-        rows = 5
-        cols = 5
-        cnt = 0
+        number_of_rows = 5
+        number_of_columns = 5
+        counter = 0
 
-        # if self._number_of_classes < 5:
-        #     rows = self._number_of_classes
-        #     cols = self._number_of_classes
-
-        generator_inputs, labels = self.generate_generator_inputs(size=5*rows)
+        generator_inputs, labels = \
+            self.generate_generator_inputs(size=5*number_of_rows)
         random_labels = self.get_random_labels_list(5)
 
         labels = np.asarray(random_labels)
-        gen_imgs = self._generator.predict([generator_inputs, labels])
+        images = self._generator.predict([generator_inputs, labels])
 
-        # gen_imgs = np.clip(gen_imgs, 0, 1)
-        gen_imgs = (gen_imgs + 1) / 2.0
-        gen_imgs = (gen_imgs*255).astype(np.uint8)
+        images = (images + 1) / 2.0
+        images = (images * 255).astype(np.uint8)
 
-        fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
-        for i in range(rows):
-            for j in range(cols):
-                axs[i, j].set_title(f'({labels[cnt]}) {self._labels_names[labels[cnt]]}')
-                axs[i, j].imshow(np.squeeze(gen_imgs[cnt, :, :, :]), cmap='gray')
-                axs[i, j].axis('off')
-                cnt += 1
-        fig.set_facecolor('white')
-        fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/sample_images/sample_{self._epoch_number}.png"))
+        figure, sub_plot = plt.subplots(number_of_rows, number_of_columns, figsize=(15, 15))
+        for i in range(number_of_rows):
+            for j in range(number_of_columns):
+                sub_plot[i, j].set_title(f'({labels[counter]}) '
+                                    f'{self._labels_names[labels[counter]]}')
+                sub_plot[i, j].imshow(np.squeeze(images[counter, :, :, :]),
+                                 cmap='gray')
+                sub_plot[i, j].axis('off')
+                counter += 1
+        figure.set_facecolor('white')
+        figure.savefig(os.path.join(os.getcwd(), f"{self._data_path}/sample_images/sample_{self._epoch_number}.png"))
         plt.close()
 
     def get_random_labels_list(self, size: int = 5) -> list:

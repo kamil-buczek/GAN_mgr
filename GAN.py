@@ -149,14 +149,14 @@ class GanNet(object):
 
     def save_weights_to_files(self):
 
-        epoch_num = self._epoch_number
+        epoch_number = self._epoch_number
 
         # Save once per 50 epoch
-        if epoch_num % 50 == 0:
-            self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_{epoch_num}.h5')
+        if epoch_number % 50 == 0:
+            self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_{epoch_number}.h5')
             self._discriminator.save_weights(
-                f'{self._data_path}/weights/discriminator/weights_epoch_{epoch_num}.h5')
-            self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_{epoch_num}.h5')
+                f'{self._data_path}/weights/discriminator/weights_epoch_{epoch_number}.h5')
+            self._gan.save_weights(f'{self._data_path}/weights/gan/weights_epoch_{epoch_number}.h5')
 
         # Save always
         self._generator.save_weights(f'{self._data_path}/weights/generator/weights_epoch_latest.h5')
@@ -195,8 +195,10 @@ class GanNet(object):
 
     def plot_loss(self):
 
+        # Wczytanie danych z plików
         disc_fake_data, disc_real_data, generator_data = self.load_loss_data_from_files()
 
+        # Tworzenie wykresu
         fig = plt.figure(figsize=(15, 15), facecolor='white')
         plt.plot([_ for _ in disc_real_data], color='blue', linewidth=0.5)
         plt.plot([_ for _ in disc_fake_data], color='green', linewidth=0.5)
@@ -216,6 +218,7 @@ class GanNet(object):
         plt.xlim(0, len(disc_real_data))
         plt.ylim(0, max_value + 1)
 
+        # Zapisanie wykresu
         fig.savefig(os.path.join(os.getcwd(), f"{self._data_path}/plots/loss_{self._epoch_number}.png"))
 
     def load_epoch_number_from_file(self) -> int:
